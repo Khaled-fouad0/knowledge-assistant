@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
+from langchain_community.retrievers import BM25Retriever
 from langchain_core.runnables import RunnablePassthrough, RunnableWithMessageHistory
 from langchain_groq import ChatGroq
 from pydantic import BaseModel
@@ -24,6 +25,7 @@ app = FastAPI(title="AI knowledge Assistant")
 document_summary = None
 vectorstore = None
 retriever = None
+all_chunks = []
 
 llm = ChatGroq(
     model="llama-3.3-70b-versatile",
@@ -51,6 +53,20 @@ def format_docs(docs):
         sources.append(f"[page {page+1}]\n {d.page_content}")
     return "\n\n--\n\n".join(sources)
 
+def hybrid_search(query: str, k: int = 3):
+    semantic_docs = vectorstore.similarity_search(query, k=k)
+    bm25 = BM25Retriever.from_documents(all_chunks)
+    bm25.k = k
+    bm25_docs = bm25.invoke(query)
+    seen = set()
+    combined = []
+    for doc in semantic_docs + bm25_docs:
+        key = doc.page_content[:100]
+        if key not in seen:
+            seen.add(key)
+            combined.append(doc)
+    return combined[:k*2]
+
 rag_prompt = ChatPromptTemplate.from_messages([
     ("system", """
 Answer the question based on the context only.
@@ -65,7 +81,7 @@ Context:
 def get_rag_chain():
     return (
         RunnablePassthrough.assign(
-            context=lambda x: format_docs(retriever.invoke(x["input"]))
+            context=lambda x: format_docs(hybrid_search(x["input"]))
         )
         | rag_prompt
         | llm
@@ -125,7 +141,7 @@ def reset(session_id: str):
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
-    global vectorstore, retriever, document_summary
+    global vectorstore, retriever, document_summary, all_chunks
 
     if not file.filename.endswith(".pdf"):
         return {"status": "error", "message": "Only PDF files are accepted"}
@@ -147,6 +163,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             chunk_overlap=200
         )
         chunks = splitter.split_documents(docs)
+        all_chunks = chunks
         vectorstore = FAISS.from_documents(chunks, embeddings)
         retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
@@ -170,7 +187,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @app.post("/upload_url")
 def upload_url(request: URLRequest):
-    global vectorstore, retriever, document_summary
+    global vectorstore, retriever, document_summary, all_chunks
 
     try:
         with httpx.Client(timeout=10) as client:
@@ -193,6 +210,7 @@ def upload_url(request: URLRequest):
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         chunks = splitter.split_documents(docs)
+        all_chunks = chunks
         vectorstore = FAISS.from_documents(chunks, embeddings)
         retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
@@ -211,7 +229,7 @@ def upload_url(request: URLRequest):
 
 @app.post("/ask")
 def ask(request: ChatRequest) -> ChatResponse:
-    if retriever is None:
+    if vectorstore is None:
         return ChatResponse(
             answer="No file has been uploaded yet. Use /upload first.",
             session_id=request.session_id
