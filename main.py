@@ -3,11 +3,14 @@ import os
 load_dotenv()
 
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 import fitz
 from langchain_core.documents import Document
 import httpx
 from bs4 import BeautifulSoup
+import pandas as pd
+import io
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -21,6 +24,13 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 import tempfile
 
 app = FastAPI(title="AI knowledge Assistant")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 document_summary = None
 vectorstore = None
@@ -226,7 +236,91 @@ def upload_url(request: URLRequest):
 
     except Exception as e:
         return {"status": "error", "message": f"Failed to process URL: {str(e)}"}
+    
+@app.post("/upload_text")
+async def upload_text(file: UploadFile = File(...)):
+    global vectorstore, retriever, document_summary, all_chunks
 
+    if not file.filename.endswith(".txt"):
+        return {"status": "error", "message": "Only TXT files are accepted"}
+
+    try:
+        content = await file.read()
+        text = content.decode("utf-8")
+
+        if not text.strip():
+            return {"status": "error", "message": "File is empty"}
+
+        docs = [Document(
+            page_content=text,
+            metadata={"source": file.filename, "page": 0}
+        )]
+
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        chunks = splitter.split_documents(docs)
+        all_chunks = chunks
+        vectorstore = FAISS.from_documents(chunks, embeddings)
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+        full_text = text[:3000]
+        summary_prompt = f"summarize this content in 3-5 sentences in the same language:\n\n{full_text}"
+        document_summary = llm.invoke(summary_prompt).content
+
+        return {
+            "status": "success",
+            "chunks": len(chunks),
+            "filename": file.filename
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to process file: {str(e)}"}
+
+@app.post("/upload_csv")
+async def upload_csv(file: UploadFile = File(...)):
+    global vectorstore, retriever, document_summary, all_chunks
+
+    if not file.filename.endswith(".csv"):
+        return {"status": "error", "message": "Only CSV files are accepted"}
+
+    try:
+        content = await file.read()
+        df = pd.read_csv(io.StringIO(content.decode("utf-8")))
+
+        if df.empty:
+            return {"status": "error", "message": "CSV is empty"}
+
+        rows_text = []
+        for i, row in df.iterrows():
+            row_text = " | ".join([f"{col}: {val}" for col, val in row.items()])
+            rows_text.append(row_text)
+
+        full_text = "\n".join(rows_text)
+
+        docs = [Document(
+            page_content=full_text,
+            metadata={"source": file.filename, "page": 0}
+        )]
+
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        chunks = splitter.split_documents(docs)
+        all_chunks = chunks
+        vectorstore = FAISS.from_documents(chunks, embeddings)
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+        full_text_summary = full_text[:3000]
+        summary_prompt = f"summarize this data in 3-5 sentences:\n\n{full_text_summary}"
+        document_summary = llm.invoke(summary_prompt).content
+
+        return {
+            "status": "success",
+            "rows": len(df),
+            "columns": list(df.columns),
+            "chunks": len(chunks),
+            "filename": file.filename
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to process CSV: {str(e)}"}
 @app.post("/ask")
 def ask(request: ChatRequest) -> ChatResponse:
     if vectorstore is None:
