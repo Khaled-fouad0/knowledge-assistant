@@ -11,6 +11,7 @@ import httpx
 from bs4 import BeautifulSoup
 import pandas as pd
 import io
+from docx import Document as DocxDocument
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -321,6 +322,55 @@ async def upload_csv(file: UploadFile = File(...)):
 
     except Exception as e:
         return {"status": "error", "message": f"Failed to process CSV: {str(e)}"}
+from docx import Document as DocxDocument
+
+@app.post("/upload_docx")
+async def upload_docx(file: UploadFile = File(...)):
+    global vectorstore, retriever, document_summary, all_chunks
+
+    if not file.filename.endswith(".docx"):
+        return {"status": "error", "message": "Only DOCX files are accepted"}
+
+    try:
+        content = await file.read()
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        docx = DocxDocument(tmp_path)
+        full_text = "\n".join([para.text for para in docx.paragraphs if para.text.strip()])
+
+        if not full_text:
+            return {"status": "error", "message": "DOCX is empty"}
+
+        docs = [Document(
+            page_content=full_text,
+            metadata={"source": file.filename, "page": 0}
+        )]
+
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        chunks = splitter.split_documents(docs)
+        all_chunks = chunks
+        vectorstore = FAISS.from_documents(chunks, embeddings)
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+        summary_prompt = f"summarize this document in 3-5 sentences in the same language:\n\n{full_text[:3000]}"
+        document_summary = llm.invoke(summary_prompt).content
+
+        return {
+            "status": "success",
+            "chunks": len(chunks),
+            "filename": file.filename
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to process DOCX: {str(e)}"}
+
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
 @app.post("/ask")
 def ask(request: ChatRequest) -> ChatResponse:
     if vectorstore is None:
