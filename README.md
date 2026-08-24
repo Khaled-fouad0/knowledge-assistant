@@ -38,14 +38,14 @@ Available as a **web app**, a **Telegram bot**, and a **REST API**.
 
 ## Features
 
-- 🧠 **Hybrid RAG Search** — Combines FAISS semantic search with BM25 keyword retrieval for higher accuracy
-- 📄 **Multi-source Ingestion** — PDF, TXT, CSV, DOCX, and URLs
-- 💬 **Conversation Memory** — Maintains context across multiple turns per session
-- 📎 **Page-level Citations** — Every answer references its source page or chunk
-- 🤖 **Telegram Bot** — Chat with your documents directly from Telegram
-- 🌐 **Next.js Frontend** — Clean, responsive web interface
-- ⚡ **Fast Inference** — Powered by Groq (LLaMA 3.3 70B) for near-instant responses
-- 🔄 **Session Management** — Independent conversation history per user/session
+- **Hybrid RAG Search** — Combines FAISS semantic search with BM25 keyword retrieval for higher accuracy
+- **Multi-source Ingestion** — PDF, TXT, CSV, DOCX, and URLs
+- **Conversation Memory** — Maintains context across multiple turns per session
+- **Page-level Citations** — Every answer references its source page or chunk
+- **Telegram Bot** — Chat with your documents directly from Telegram
+- **Next.js Frontend** — Clean, responsive web interface
+- **Fast Inference** — Powered by Groq (LLaMA 3.3 70B) for near-instant responses
+- **Session Management** — Independent conversation history per user/session
 
 ---
 
@@ -73,7 +73,7 @@ Pure semantic search misses exact keyword matches. Pure BM25 misses conceptual s
 
 ---
 
-## 🗂️ Project Structure
+## Project Structure
 
 ```
 knowledge-assistant/
@@ -89,7 +89,7 @@ knowledge-assistant/
 └── README.md
 ```
 
-**Frontend (separate repo):**
+** Frontend (separate repo):**
 
 ```
 knowledge-frontend/
@@ -100,7 +100,7 @@ knowledge-frontend/
 
 ---
 
-## ⚙️ Setup & Run
+## Setup & Run
 
 ### 1. Clone the repository
 
@@ -149,7 +149,7 @@ streamlit run app.py
 
 ---
 
-## 🔌 API Reference
+## API Reference
 
 ### Upload Endpoints
 
@@ -249,7 +249,7 @@ Ingest a webpage into the knowledge base.
 
 ---
 
-## 🤖 Telegram Bot Usage
+## Telegram Bot Usage
 
 Find the bot at [@7asaneen_bot](https://t.me/7asaneen_bot)
 
@@ -262,7 +262,7 @@ Find the bot at [@7asaneen_bot](https://t.me/7asaneen_bot)
 
 ---
 
-## 🧱 Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
@@ -282,7 +282,7 @@ Find the bot at [@7asaneen_bot](https://t.me/7asaneen_bot)
 
 ---
 
-## 🚀 Deployment
+## Deployment
 
 ### Backend — Hugging Face Spaces (Docker)
 
@@ -299,7 +299,7 @@ Live app: [knowledge-frontend-ten.vercel.app](https://knowledge-frontend-ten.ver
 
 ---
 
-## 🔒 Notes
+## Notes
 
 - `allow_origins=["*"]` is set for development — restrict in production
 - Each session maintains independent conversation history
@@ -308,7 +308,7 @@ Live app: [knowledge-frontend-ten.vercel.app](https://knowledge-frontend-ten.ver
 
 ---
 
-## 🚧 Possible Extensions
+## Possible Extensions
 
 - [ ] Per-session document isolation (multi-tenant support)
 - [ ] Persistent vectorstore (save/load FAISS index to disk)
@@ -321,7 +321,7 @@ Live app: [knowledge-frontend-ten.vercel.app](https://knowledge-frontend-ten.ver
 
 ---
 
-## 👤 Author
+## Author
 
 Built by **Khaled** 🤙🏽
 
